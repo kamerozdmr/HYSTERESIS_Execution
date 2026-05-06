@@ -846,51 +846,30 @@
   // ================================================================
 
   firebase.initializeApp(FIREBASE_CONFIG);
-  const db       = firebase.database();
-  const stateRef = db.ref('hysteresis/state');
+  const db = firebase.database();
+
+  // Steps stored as timestamps (truthy = done, absent = not done).
+  // All inputs synced as plain strings.
+  const stepsRef = db.ref('hysteresis/steps');
   const timerRef = db.ref('hysteresis/timer');
   const nameRef  = db.ref('hysteresis/testName');
+  const CONN_IDS = ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'];
 
-  const USER_KEY    = 'hysteresis_user_v3';
   const RING_CIRCUM = 175.9;
   let timerInterval = null;
   let timerStart    = null;
   const TOTAL = PREP_STEPS.length + EXEC_STEPS.length;
-
-  function getUserLabel() {
-    let label = localStorage.getItem(USER_KEY);
-    if (!label) {
-      const adj = ['Echo', 'Vector', 'Delta', 'Helix', 'Apex', 'Nova', 'Flux', 'Zenith'];
-      const num  = Math.floor(Math.random() * 90) + 10;
-      label = 'OP-' + adj[Math.floor(Math.random() * adj.length)] + '-' + num;
-      localStorage.setItem(USER_KEY, label);
-    }
-    return label;
-  }
-  const currentUser = getUserLabel();
   document.getElementById('totalCount').textContent = '/' + TOTAL;
 
-  let state = {};
+  // steps: { p1: <timestamp>, e1: <timestamp>, ... } — key present = done
+  let steps = {};
+  const isDone = id => !!steps[id];
+  const tsOf   = id => (typeof steps[id] === 'number' ? steps[id] : null);
 
-  function saveState() {
-    stateRef.set(state);
-  }
+  // ── Real-time listeners ──────────────────────────────────────────
 
-  function syncTimer() {
-    const allExecDone = EXEC_STEPS.every(s => state[s.id] && state[s.id].done);
-    if (allExecDone) {
-      timerRef.once('value').then(snap => {
-        if (!snap.exists()) timerRef.set(Date.now());
-      });
-    } else {
-      timerRef.remove();
-    }
-  }
-
-  // ── Real-time listeners — fire instantly on any device's change ──
-
-  stateRef.on('value', snap => {
-    state = snap.val() || {};
+  stepsRef.on('value', snap => {
+    steps = snap.val() || {};
     render();
   });
 
@@ -910,16 +889,21 @@
 
   nameRef.on('value', snap => {
     const input = document.getElementById('testNameInput');
-    const val   = snap.val() || '';
-    if (document.activeElement !== input) input.value = val;
+    if (document.activeElement !== input) input.value = snap.val() || '';
+  });
+
+  CONN_IDS.forEach(id => {
+    db.ref('hysteresis/' + id).on('value', snap => {
+      const el = document.getElementById(id);
+      if (el && document.activeElement !== el) el.value = snap.val() || '';
+    });
   });
 
   // ── Render ───────────────────────────────────────────────────────
 
   function buildPrepItem(step) {
-    const st  = state[step.id] || { done: false };
     const div = document.createElement('div');
-    div.className = 'prep-item' + (st.done ? ' done' : '');
+    div.className = 'prep-item' + (isDone(step.id) ? ' done' : '');
     div.innerHTML =
       '<div class="prep-check"><svg viewBox="0 0 9 9" fill="none"><path d="M1.5 4.5L4 7L7.5 2.5" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
       '<div class="prep-text">' + step.text + '</div>';
@@ -928,12 +912,12 @@
   }
 
   function buildExecCard(step, displayNum) {
-    const st = state[step.id] || { done: false };
     const li = document.createElement('li');
-    li.className = 'task' + (st.done ? ' done' : '');
+    li.className = 'task' + (isDone(step.id) ? ' done' : '');
+    const ts = tsOf(step.id);
     let metaHtml = '<div class="task-meta"></div>';
-    if (st.done && st.at) {
-      const time = new Date(st.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam' });
+    if (ts) {
+      const time = new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam' });
       metaHtml = '<div class="task-meta">✓ ' + time + ' CET</div>';
     }
     const waitHtml = step.wait ? '<div class="task-wait">' + step.wait + '</div>' : '';
@@ -953,30 +937,26 @@
   function render() {
     const prepStrip = document.getElementById('prepStrip');
     const execList  = document.getElementById('execList');
-
     prepStrip.querySelectorAll('.prep-item').forEach(el => el.remove());
     execList.innerHTML = '';
 
     let prepDone = 0, execDone = 0;
-
     PREP_STEPS.forEach(step => {
       prepStrip.appendChild(buildPrepItem(step));
-      if (state[step.id] && state[step.id].done) prepDone++;
+      if (isDone(step.id)) prepDone++;
     });
-
     EXEC_STEPS.forEach((step, i) => {
       execList.appendChild(buildExecCard(step, String(i + 1)));
-      if (state[step.id] && state[step.id].done) execDone++;
+      if (isDone(step.id)) execDone++;
     });
 
     document.getElementById('prepCount').textContent       = prepDone;
     document.getElementById('execCount').textContent       = execDone;
     document.getElementById('execCountInline').textContent = execDone;
-
-    const total  = prepDone + execDone;
+    const total = prepDone + execDone;
     document.getElementById('doneCount').textContent = total;
-    const offset = RING_CIRCUM - (total / TOTAL) * RING_CIRCUM;
-    document.getElementById('ringFg').style.strokeDashoffset = offset;
+    document.getElementById('ringFg').style.strokeDashoffset =
+      RING_CIRCUM - (total / TOTAL) * RING_CIRCUM;
   }
 
   function updateTimer() {
@@ -988,30 +968,45 @@
     document.getElementById('timerValue').textContent = h + ':' + m + ':' + s;
   }
 
+  function syncTimer() {
+    if (EXEC_STEPS.every(s => isDone(s.id))) {
+      timerRef.once('value').then(snap => { if (!snap.exists()) timerRef.set(Date.now()); });
+    } else {
+      timerRef.remove();
+    }
+  }
+
   function toggleStep(id) {
     const execIdx = EXEC_STEPS.findIndex(s => s.id === id);
-    const cur = state[id] || { done: false };
+    const wasDone = isDone(id);
+
     if (execIdx !== -1) {
-      const allPrepDone = PREP_STEPS.every(s => state[s.id] && state[s.id].done);
-      if (!allPrepDone) return;
-      if (cur.done) {
-        const lastDone = EXEC_STEPS.reduce((last, s, i) => (state[s.id] && state[s.id].done ? i : last), -1);
+      if (!PREP_STEPS.every(s => isDone(s.id))) return;
+      if (wasDone) {
+        const lastDone = EXEC_STEPS.reduce((last, s, i) => (isDone(s.id) ? i : last), -1);
         if (execIdx !== lastDone) return;
       } else {
-        if (execIdx > 0 && !(state[EXEC_STEPS[execIdx - 1].id] && state[EXEC_STEPS[execIdx - 1].id].done)) return;
+        if (execIdx > 0 && !isDone(EXEC_STEPS[execIdx - 1].id)) return;
       }
     }
-    if (cur.done) state[id] = { done: false };
-    else state[id] = { done: true, by: currentUser, at: Date.now() };
-    saveState();
+
+    if (wasDone) {
+      stepsRef.child(id).remove();
+      delete steps[id];
+    } else {
+      const ts = Date.now();
+      stepsRef.child(id).set(ts);
+      steps[id] = ts;
+    }
     syncTimer();
   }
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (confirm('Reset execution sequence?')) {
-      EXEC_STEPS.forEach(s => delete state[s.id]);
+      const clears = {};
+      EXEC_STEPS.forEach(s => { clears[s.id] = null; });
+      stepsRef.update(clears);
       timerRef.remove();
-      saveState();
     }
   });
 
@@ -1037,19 +1032,22 @@
   updateClock();
   setInterval(updateClock, 1000);
 
-  // ── Test name (synced across devices) ────────────────────────────
+  // ── Test name — synced ───────────────────────────────────────────
   let nameDebounce = null;
-  const nameInput = document.getElementById('testNameInput');
-  nameInput.addEventListener('input', () => {
+  document.getElementById('testNameInput').addEventListener('input', e => {
     clearTimeout(nameDebounce);
-    nameDebounce = setTimeout(() => nameRef.set(nameInput.value || null), 400);
+    nameDebounce = setTimeout(() => nameRef.set(e.target.value || null), 400);
   });
 
-  // ── Site connection inputs (device-local) ────────────────────────
-  ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'].forEach(id => {
-    const el = document.getElementById(id);
-    el.value = localStorage.getItem('hys_' + id) || '';
-    el.addEventListener('input', () => localStorage.setItem('hys_' + id, el.value));
+  // ── Connection inputs — synced ───────────────────────────────────
+  CONN_IDS.forEach(id => {
+    const el  = document.getElementById(id);
+    const ref = db.ref('hysteresis/' + id);
+    let debounce = null;
+    el.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => ref.set(el.value || null), 400);
+    });
   });
 </script>
 
