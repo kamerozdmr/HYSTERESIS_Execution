@@ -480,6 +480,8 @@
   }
   .site-ip:focus, .site-port:focus { border-bottom-color: var(--orange); }
   .site-ip::placeholder, .site-port::placeholder { color: var(--faint); }
+  .site-ip[readonly], .site-port[readonly] { opacity: 0.45; cursor: not-allowed; }
+  .test-name-input[readonly] { opacity: 0.45; cursor: not-allowed; }
   .site-input-sep {
     font-family: var(--mono); font-size: 11px;
     color: var(--faint); flex-shrink: 0;
@@ -915,6 +917,8 @@
 
   let unlocked = false;
 
+  const LOCKED_INPUTS = ['testNameInput', ...CONN_IDS];
+
   function setLockState(open) {
     unlocked = open;
     const btn     = document.getElementById('lockBtn');
@@ -925,7 +929,13 @@
     shackle.setAttribute('d', open
       ? 'M3.5 6V4a2.5 2.5 0 0 1 5 0'
       : 'M3.5 6V4a2.5 2.5 0 0 1 5 0v2');
+    LOCKED_INPUTS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.readOnly = !open;
+    });
   }
+
+  setLockState(false);
 
   document.getElementById('lockBtn').addEventListener('click', () => {
     if (unlocked) {
