@@ -147,7 +147,7 @@
     letter-spacing: 0.04em;
     text-align: right;
   }
-  .clock-time .sec { color: var(--orange); }
+  .clock-time .hr { color: var(--orange); }
   .clock-tz {
     font-family: var(--mono);
     font-size: 8px;
@@ -157,10 +157,10 @@
     margin-top: 2px;
   }
   .clock-row.uk .ctag { color: var(--uk); }
-  .clock-row.uk .clock-time .sec { color: var(--uk); }
+  .clock-row.uk .clock-time .hr { color: var(--uk); }
   .clock-row.uk .clock-tz { color: var(--uk); opacity: 0.6; }
   .clock-row.gr .ctag { color: var(--gr); }
-  .clock-row.gr .clock-time .sec { color: var(--gr); }
+  .clock-row.gr .clock-time .hr { color: var(--gr); }
   .clock-row.gr .clock-tz { color: var(--gr); opacity: 0.6; }
 
   /* PROGRESS RING */
@@ -249,6 +249,13 @@
     color: var(--orange);
     letter-spacing: 0.04em;
     line-height: 1;
+  }
+  .timer-start-at {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    margin-top: 6px;
   }
 
   /* SIDEBAR FOOTER */
@@ -772,6 +779,7 @@
       <div class="test-timer" id="testTimer" style="display:none">
         <div class="timer-label">Test Started</div>
         <div class="timer-value" id="timerValue">00:00:00</div>
+        <div class="timer-start-at" id="timerStartAt"></div>
       </div>
       <button class="reset-btn" id="resetBtn">↺ Reset</button>
     </div>
@@ -836,7 +844,6 @@
         <h2 class="exec-title">Execution Sequence</h2>
         <span class="exec-line"></span>
         <span class="exec-count"><strong id="execCountInline">0</strong> / 9</span>
-        <span class="exec-start-time" id="execStartTime" style="display:none"></span>
       </div>
       <ul class="exec-grid" id="execList"></ul>
     </section>
@@ -903,7 +910,7 @@
   // ================================================================
   //  PASSWORD — change this to whatever you want
   // ================================================================
-  const PASSWORD = '11052026';
+  const PASSWORD = '110526';
   // ================================================================
 
   let unlocked = false;
@@ -947,19 +954,18 @@
 
   timerRef.on('value', snap => {
     timerStart = snap.val() || null;
-    const timerEl     = document.getElementById('testTimer');
-    const startTimeEl = document.getElementById('execStartTime');
+    const timerEl   = document.getElementById('testTimer');
+    const startAtEl = document.getElementById('timerStartAt');
     if (timerStart) {
       const hhmm = new Date(timerStart).toLocaleTimeString('en-GB', {
         hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam'
       });
-      startTimeEl.textContent = 'Started ' + hhmm + ' CET';
-      startTimeEl.style.display = '';
+      startAtEl.textContent = 'at ' + hhmm + ' CET';
       timerEl.style.display = 'block';
       updateTimer();
       if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
     } else {
-      startTimeEl.style.display = 'none';
+      startAtEl.textContent = '';
       timerEl.style.display = 'none';
       clearInterval(timerInterval);
       timerInterval = null;
@@ -1121,11 +1127,11 @@
       const dateStr = now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: tz }).toUpperCase();
       document.getElementById(dateId).textContent = dateStr;
       const parts = new Intl.DateTimeFormat('en-GB', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour: '2-digit', minute: '2-digit',
         hour12: false, timeZone: tz, timeZoneName: 'short'
       }).formatToParts(now);
       const get = t => parts.find(p => p.type === t).value;
-      document.getElementById(timeId).innerHTML = get('hour') + ':' + get('minute') + '<span class="sec">:' + get('second') + '</span>';
+      document.getElementById(timeId).innerHTML = '<span class="hr">' + get('hour') + '</span>:' + get('minute');
       document.getElementById(tzId).textContent = get('timeZoneName');
     });
   }
