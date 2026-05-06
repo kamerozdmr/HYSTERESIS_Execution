@@ -514,6 +514,15 @@
     letter-spacing: 0.1em;
   }
   .exec-count strong { color: var(--orange); font-weight: 700; }
+  .exec-start-time {
+    font-family: var(--mono);
+    font-size: 10px; font-weight: 600;
+    color: var(--orange);
+    letter-spacing: 0.08em;
+    padding-left: 10px;
+    border-left: 1px solid var(--line-hot);
+    margin-left: 2px;
+  }
 
   .exec-grid {
     flex: 1;
@@ -827,6 +836,7 @@
         <h2 class="exec-title">Execution Sequence</h2>
         <span class="exec-line"></span>
         <span class="exec-count"><strong id="execCountInline">0</strong> / 9</span>
+        <span class="exec-start-time" id="execStartTime" style="display:none"></span>
       </div>
       <ul class="exec-grid" id="execList"></ul>
     </section>
@@ -937,12 +947,19 @@
 
   timerRef.on('value', snap => {
     timerStart = snap.val() || null;
-    const timerEl = document.getElementById('testTimer');
+    const timerEl     = document.getElementById('testTimer');
+    const startTimeEl = document.getElementById('execStartTime');
     if (timerStart) {
+      const hhmm = new Date(timerStart).toLocaleTimeString('en-GB', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam'
+      });
+      startTimeEl.textContent = 'Started ' + hhmm + ' CET';
+      startTimeEl.style.display = '';
       timerEl.style.display = 'block';
       updateTimer();
       if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
     } else {
+      startTimeEl.style.display = 'none';
       timerEl.style.display = 'none';
       clearInterval(timerInterval);
       timerInterval = null;
