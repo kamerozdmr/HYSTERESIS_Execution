@@ -995,6 +995,8 @@
     el.addEventListener('focus', () => { connEditing[id] = true; });
     el.addEventListener('blur',  () => { connEditing[id] = false; });
     el.addEventListener('input', () => {
+      if (!unlocked) { el.value = el.dataset.lastVal || ''; return; }
+      el.dataset.lastVal = el.value;
       clearTimeout(debounce);
       debounce = setTimeout(() => ref.set(el.value || null), 400);
     });
@@ -1003,6 +1005,7 @@
         const val = snap.val();
         if (val !== null) {
           el.value = val;
+          el.dataset.lastVal = val;
         } else if (CONN_DEFAULTS[id]) {
           el.value = CONN_DEFAULTS[id];
           ref.set(CONN_DEFAULTS[id]);
@@ -1151,6 +1154,7 @@
   // ── Test name — synced ───────────────────────────────────────────
   let nameDebounce = null;
   document.getElementById('testNameInput').addEventListener('input', e => {
+    if (!unlocked) return;
     clearTimeout(nameDebounce);
     nameDebounce = setTimeout(() => nameRef.set(e.target.value || null), 400);
   });
