@@ -812,10 +812,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
   const PREP_STEPS = [
-    { id: 'p1', text: 'VPN Connection' },
-    { id: 'p2', text: 'Received IP and Port Numbers' },
-    { id: 'p3', text: 'Input files modified' },
-    { id: 'p4', text: 'Pinging Algorithm' }
+    { id: 'p1', text: 'VPN Connection Established' },
+    { id: 'p2', text: 'IP and Port Numbers Received' },
+    { id: 'p3', text: 'Input files Modified' },
+    { id: 'p4', text: 'Pinging Algorithm Started' }
   ];
 
   const EXEC_STEPS = [
@@ -853,7 +853,8 @@
   const stepsRef = db.ref('hysteresis/steps');
   const timerRef = db.ref('hysteresis/timer');
   const nameRef  = db.ref('hysteresis/testName');
-  const CONN_IDS = ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'];
+  const CONN_IDS      = ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'];
+  const CONN_DEFAULTS = { modelIp: '10.136.11.4', modelPort: '8090' };
 
   const RING_CIRCUM = 175.9;
   let timerInterval = null;
@@ -892,10 +893,29 @@
     if (document.activeElement !== input) input.value = snap.val() || '';
   });
 
+  const connEditing = {};
   CONN_IDS.forEach(id => {
-    db.ref('hysteresis/' + id).on('value', snap => {
-      const el = document.getElementById(id);
-      if (el && document.activeElement !== el) el.value = snap.val() || '';
+    const el  = document.getElementById(id);
+    const ref = db.ref('hysteresis/' + id);
+    let debounce = null;
+    el.addEventListener('focus', () => { connEditing[id] = true; });
+    el.addEventListener('blur',  () => { connEditing[id] = false; });
+    el.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => ref.set(el.value || null), 400);
+    });
+    ref.on('value', snap => {
+      if (!connEditing[id]) {
+        const val = snap.val();
+        if (val !== null) {
+          el.value = val;
+        } else if (CONN_DEFAULTS[id]) {
+          el.value = CONN_DEFAULTS[id];
+          ref.set(CONN_DEFAULTS[id]);
+        } else {
+          el.value = '';
+        }
+      }
     });
   });
 
@@ -1039,16 +1059,6 @@
     nameDebounce = setTimeout(() => nameRef.set(e.target.value || null), 400);
   });
 
-  // ── Connection inputs — synced ───────────────────────────────────
-  CONN_IDS.forEach(id => {
-    const el  = document.getElementById(id);
-    const ref = db.ref('hysteresis/' + id);
-    let debounce = null;
-    el.addEventListener('input', () => {
-      clearTimeout(debounce);
-      debounce = setTimeout(() => ref.set(el.value || null), 400);
-    });
-  });
 </script>
 
 </body>
