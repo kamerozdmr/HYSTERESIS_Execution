@@ -808,6 +808,8 @@
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
   const PREP_STEPS = [
     { id: 'p1', text: 'VPN Connection' },
@@ -817,29 +819,49 @@
   ];
 
   const EXEC_STEPS = [
-    { id: 'e1', where: 'Bristol GUI', action: 'Start Server', wait: '' },
-    { id: 'e2', where: 'Patras GUI', action: 'Start Server', wait: '' },
+    { id: 'e1', where: 'Bristol GUI',   action: 'Start Server',      wait: '' },
+    { id: 'e2', where: 'Patras GUI',    action: 'Start Server',      wait: '' },
     { id: 'e3', where: 'Interface GUI', action: 'Connect → Bristol', wait: '' },
-    { id: 'e4', where: 'Interface GUI', action: 'Connect → Patras', wait: '' },
-    { id: 'e5', where: 'Interface GUI', action: 'Connect → Model', wait: '' },
-    { id: 'e6', where: 'OpenSees', action: 'Execute Model', wait: '' },
-    { id: 'e7', where: 'Bristol GUI', action: 'Run', wait: '' },
-    { id: 'e8', where: 'Patras GUI', action: 'Run', wait: '' },
-    { id: 'e9', where: 'Interface GUI', action: 'Run → Go', wait: '' }
+    { id: 'e4', where: 'Interface GUI', action: 'Connect → Patras',  wait: '' },
+    { id: 'e5', where: 'Interface GUI', action: 'Connect → Model',   wait: '' },
+    { id: 'e6', where: 'OpenSees',      action: 'Execute Model',     wait: '' },
+    { id: 'e7', where: 'Bristol GUI',   action: 'Run',               wait: '' },
+    { id: 'e8', where: 'Patras GUI',    action: 'Run',               wait: '' },
+    { id: 'e9', where: 'Interface GUI', action: 'Run → Go',          wait: '' }
   ];
 
-  const STORAGE_KEY = 'hysteresis_state_v3';
-  const USER_KEY = 'hysteresis_user_v3';
-  const TIMER_KEY = 'hysteresis_timer_v1';
+  // ================================================================
+  //  FIREBASE CONFIG — paste your project values here
+  //  (console.firebase.google.com → Project Settings → Web App)
+  // ================================================================
+  const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyA-rXacAJHFvI_eFSzXfVl9pxK-A9piem0",
+      authDomain: "hysteresis-hanze.firebaseapp.com",
+      databaseURL: "https://hysteresis-hanze-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "hysteresis-hanze",
+      storageBucket: "hysteresis-hanze.firebasestorage.app",
+      messagingSenderId: "863379021936",
+      appId: "1:863379021936:web:d23cac70f051bc189894b5"
+  };
+  // ================================================================
+
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db       = firebase.database();
+  const stateRef = db.ref('hysteresis/state');
+  const timerRef = db.ref('hysteresis/timer');
+  const nameRef  = db.ref('hysteresis/testName');
+
+  const USER_KEY    = 'hysteresis_user_v3';
   const RING_CIRCUM = 175.9;
   let timerInterval = null;
+  let timerStart    = null;
   const TOTAL = PREP_STEPS.length + EXEC_STEPS.length;
 
   function getUserLabel() {
     let label = localStorage.getItem(USER_KEY);
     if (!label) {
       const adj = ['Echo', 'Vector', 'Delta', 'Helix', 'Apex', 'Nova', 'Flux', 'Zenith'];
-      const num = Math.floor(Math.random() * 90) + 10;
+      const num  = Math.floor(Math.random() * 90) + 10;
       label = 'OP-' + adj[Math.floor(Math.random() * adj.length)] + '-' + num;
       localStorage.setItem(USER_KEY, label);
     }
@@ -849,14 +871,53 @@
   document.getElementById('totalCount').textContent = '/' + TOTAL;
 
   let state = {};
-  function loadState() {
-    try { const s = localStorage.getItem(STORAGE_KEY); if (s) state = JSON.parse(s); }
-    catch (e) { state = {}; }
+
+  function saveState() {
+    stateRef.set(state);
   }
-  function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+  function syncTimer() {
+    const allExecDone = EXEC_STEPS.every(s => state[s.id] && state[s.id].done);
+    if (allExecDone) {
+      timerRef.once('value').then(snap => {
+        if (!snap.exists()) timerRef.set(Date.now());
+      });
+    } else {
+      timerRef.remove();
+    }
+  }
+
+  // ── Real-time listeners — fire instantly on any device's change ──
+
+  stateRef.on('value', snap => {
+    state = snap.val() || {};
+    render();
+  });
+
+  timerRef.on('value', snap => {
+    timerStart = snap.val() || null;
+    const timerEl = document.getElementById('testTimer');
+    if (timerStart) {
+      timerEl.style.display = 'block';
+      updateTimer();
+      if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
+    } else {
+      timerEl.style.display = 'none';
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  });
+
+  nameRef.on('value', snap => {
+    const input = document.getElementById('testNameInput');
+    const val   = snap.val() || '';
+    if (document.activeElement !== input) input.value = val;
+  });
+
+  // ── Render ───────────────────────────────────────────────────────
 
   function buildPrepItem(step) {
-    const st = state[step.id] || { done: false };
+    const st  = state[step.id] || { done: false };
     const div = document.createElement('div');
     div.className = 'prep-item' + (st.done ? ' done' : '');
     div.innerHTML =
@@ -872,7 +933,7 @@
     li.className = 'task' + (st.done ? ' done' : '');
     let metaHtml = '<div class="task-meta"></div>';
     if (st.done && st.at) {
-      const time = new Date(st.at).toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', timeZone: 'Europe/Amsterdam'});
+      const time = new Date(st.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam' });
       metaHtml = '<div class="task-meta">✓ ' + time + ' CET</div>';
     }
     const waitHtml = step.wait ? '<div class="task-wait">' + step.wait + '</div>' : '';
@@ -891,9 +952,8 @@
 
   function render() {
     const prepStrip = document.getElementById('prepStrip');
-    const execList = document.getElementById('execList');
+    const execList  = document.getElementById('execList');
 
-    // Clear prep strip but keep label
     prepStrip.querySelectorAll('.prep-item').forEach(el => el.remove());
     execList.innerHTML = '';
 
@@ -905,46 +965,27 @@
     });
 
     EXEC_STEPS.forEach((step, i) => {
-      const num = String(i + 1);
-      execList.appendChild(buildExecCard(step, num));
+      execList.appendChild(buildExecCard(step, String(i + 1)));
       if (state[step.id] && state[step.id].done) execDone++;
     });
 
-    document.getElementById('prepCount').textContent = prepDone;
-    document.getElementById('execCount').textContent = execDone;
+    document.getElementById('prepCount').textContent       = prepDone;
+    document.getElementById('execCount').textContent       = execDone;
     document.getElementById('execCountInline').textContent = execDone;
 
-    const total = prepDone + execDone;
+    const total  = prepDone + execDone;
     document.getElementById('doneCount').textContent = total;
     const offset = RING_CIRCUM - (total / TOTAL) * RING_CIRCUM;
     document.getElementById('ringFg').style.strokeDashoffset = offset;
-    checkTimer();
   }
 
   function updateTimer() {
-    const start = parseInt(localStorage.getItem(TIMER_KEY));
-    if (!start) return;
-    const elapsed = Math.floor((Date.now() - start) / 1000);
+    if (!timerStart) return;
+    const elapsed = Math.floor((Date.now() - timerStart) / 1000);
     const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
     const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
     const s = String(elapsed % 60).padStart(2, '0');
     document.getElementById('timerValue').textContent = h + ':' + m + ':' + s;
-  }
-
-  function checkTimer() {
-    const execDone = EXEC_STEPS.filter(s => state[s.id] && state[s.id].done).length;
-    const timerEl = document.getElementById('testTimer');
-    if (execDone === EXEC_STEPS.length) {
-      if (!localStorage.getItem(TIMER_KEY)) localStorage.setItem(TIMER_KEY, String(Date.now()));
-      timerEl.style.display = 'block';
-      updateTimer();
-      if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
-    } else {
-      timerEl.style.display = 'none';
-      clearInterval(timerInterval);
-      timerInterval = null;
-      localStorage.removeItem(TIMER_KEY);
-    }
   }
 
   function toggleStep(id) {
@@ -954,44 +995,34 @@
       const allPrepDone = PREP_STEPS.every(s => state[s.id] && state[s.id].done);
       if (!allPrepDone) return;
       if (cur.done) {
-        // Can only uncheck the last completed exec step
         const lastDone = EXEC_STEPS.reduce((last, s, i) => (state[s.id] && state[s.id].done ? i : last), -1);
         if (execIdx !== lastDone) return;
       } else {
-        // Can only check if the previous exec step is already done
         if (execIdx > 0 && !(state[EXEC_STEPS[execIdx - 1].id] && state[EXEC_STEPS[execIdx - 1].id].done)) return;
       }
     }
     if (cur.done) state[id] = { done: false };
     else state[id] = { done: true, by: currentUser, at: Date.now() };
-    render(); saveState();
+    saveState();
+    syncTimer();
   }
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (confirm('Reset execution sequence?')) {
       EXEC_STEPS.forEach(s => delete state[s.id]);
-      localStorage.removeItem(TIMER_KEY);
-      clearInterval(timerInterval);
-      timerInterval = null;
-      document.getElementById('testTimer').style.display = 'none';
-      render();
+      timerRef.remove();
       saveState();
     }
   });
 
-  window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) { loadState(); render(); }
-  });
-
-  // CLOCK
+  // ── Clock ────────────────────────────────────────────────────────
   function updateClock() {
     const now = new Date();
-    const zones = [
+    [
       { tz: 'Europe/London',    dateId: 'dateUK', timeId: 'timeUK', tzId: 'tzUK' },
       { tz: 'Europe/Amsterdam', dateId: 'dateNL', timeId: 'timeNL', tzId: 'tzNL' },
       { tz: 'Europe/Athens',    dateId: 'dateGR', timeId: 'timeGR', tzId: 'tzGR' },
-    ];
-    zones.forEach(({ tz, dateId, timeId, tzId }) => {
+    ].forEach(({ tz, dateId, timeId, tzId }) => {
       const dateStr = now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: tz }).toUpperCase();
       document.getElementById(dateId).textContent = dateStr;
       const parts = new Intl.DateTimeFormat('en-GB', {
@@ -1006,16 +1037,15 @@
   updateClock();
   setInterval(updateClock, 1000);
 
-  loadState();
-  render();
-
-  // TEST NAME persistence
-  const TEST_NAME_KEY = 'hysteresis_test_name';
+  // ── Test name (synced across devices) ────────────────────────────
+  let nameDebounce = null;
   const nameInput = document.getElementById('testNameInput');
-  nameInput.value = localStorage.getItem(TEST_NAME_KEY) || '';
-  nameInput.addEventListener('input', () => localStorage.setItem(TEST_NAME_KEY, nameInput.value));
+  nameInput.addEventListener('input', () => {
+    clearTimeout(nameDebounce);
+    nameDebounce = setTimeout(() => nameRef.set(nameInput.value || null), 400);
+  });
 
-  // SITE CONNECTION persistence
+  // ── Site connection inputs (device-local) ────────────────────────
   ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'].forEach(id => {
     const el = document.getElementById(id);
     el.value = localStorage.getItem('hys_' + id) || '';
