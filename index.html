@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HYSTERESIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Anton&family=Archivo:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #000000;
+    --black-soft: #0a0a0a;
+    --char: #141414;
+    --char-2: #1a1a1a;
+    --line: #2a2a2a;
+    --line-hot: #3d3d3d;
+    --white: #ffffff;
+    --dim: #a8a8a8;
+    --faint: #5a5a5a;
+    --orange: #f08200;
+    --orange-bright: #ff9419;
+    --orange-glow: rgba(240, 130, 0, 0.18);
+    --uk: #ef4444;
+    --gr: #3b82f6;
+    --display: 'Anton', Impact, sans-serif;
+    --body: 'Archivo', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--black); color: var(--white);
+    font-family: var(--body); font-size: 14px; line-height: 1.5;
+    height: 100vh; width: 100vw;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse 60% 40% at 100% 0%, var(--orange-glow), transparent 65%),
+      radial-gradient(ellipse 50% 40% at 0% 100%, rgba(240, 130, 0, 0.06), transparent 70%);
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.04; mix-blend-mode: overlay;
+  }
+
+  /* ============ LAYOUT ============ */
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ============ SIDEBAR ============ */
+  .sidebar {
+    background: var(--black-soft);
+    border-right: 1px solid var(--line);
+    padding: 28px 28px 22px;
+    display: flex; flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .sidebar::before {
+    content: ''; position: absolute;
+    top: 0; right: 0; width: 1px; height: 100%;
+    background: linear-gradient(to bottom, transparent, var(--orange) 50%, transparent);
+    opacity: 0.4;
+  }
+
+  /* BRAND */
+  .brand {
+    margin-bottom: 28px;
+  }
+  .brand-name {
+    font-family: var(--display);
+    font-size: 52px;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    color: var(--white);
+  }
+  .brand-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-top: 8px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .brand-tag::before {
+    content: ''; width: 24px; height: 1px; background: var(--orange);
+  }
+  .brand-sub {
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-top: 6px;
+    line-height: 1;
+  }
+
+  /* DATE + TIME */
+  .clock-block {
+    margin-bottom: 24px;
+    padding: 14px 18px;
+    background: var(--char);
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  .clock-block::before {
+    content: ''; position: absolute;
+    left: 0; top: 0; width: 2px; height: 100%;
+    background: var(--orange);
+  }
+  .clock-row {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .clock-row:last-child { border-bottom: none; }
+  .clock-city {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 2px;
+  }
+  .clock-city .ctag { color: var(--orange); font-weight: 700; }
+  .clock-date {
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    opacity: 0.7;
+  }
+  .clock-time {
+    font-family: var(--display);
+    font-size: 24px;
+    line-height: 1;
+    color: var(--white);
+    letter-spacing: 0.04em;
+    text-align: right;
+  }
+  .clock-time .sec { color: var(--orange); }
+  .clock-tz {
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    color: var(--faint);
+    text-align: right;
+    margin-top: 2px;
+  }
+  .clock-row.uk .ctag { color: var(--uk); }
+  .clock-row.uk .clock-time .sec { color: var(--uk); }
+  .clock-row.uk .clock-tz { color: var(--uk); opacity: 0.6; }
+  .clock-row.gr .ctag { color: var(--gr); }
+  .clock-row.gr .clock-time .sec { color: var(--gr); }
+  .clock-row.gr .clock-tz { color: var(--gr); opacity: 0.6; }
+
+  /* PROGRESS RING */
+  .progress-block {
+    padding: 18px 0 22px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 22px;
+  }
+  .ring-svg { width: 64px; height: 64px; transform: rotate(-90deg); flex-shrink: 0; }
+  .ring-bg { stroke: var(--line); stroke-width: 4; fill: none; }
+  .ring-fg {
+    stroke: var(--orange); stroke-width: 4; fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: 175.9;
+    stroke-dashoffset: 175.9;
+    transition: stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    filter: drop-shadow(0 0 6px var(--orange-glow));
+  }
+  .ring-info { display: flex; flex-direction: column; }
+  .ring-num {
+    font-family: var(--display);
+    font-size: 32px; line-height: 0.9;
+  }
+  .ring-num span.tot { color: var(--faint); font-size: 20px; }
+  .ring-label {
+    font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--dim);
+    margin-top: 4px; font-weight: 700;
+  }
+
+  /* PHASE BREAKDOWN */
+  .phase-rows {
+    display: flex; flex-direction: column;
+    gap: 4px;
+    margin-bottom: auto;
+  }
+  .phase-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .phase-label {
+    color: var(--dim);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .phase-dot {
+    width: 6px; height: 6px;
+    border: 1px solid var(--orange);
+    border-radius: 1px;
+  }
+  .phase-dot.solid { background: var(--orange); }
+  .phase-count {
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: 0.05em;
+    color: var(--white);
+  }
+  .phase-count strong { color: var(--orange); }
+
+  /* TEST TIMER */
+  .test-timer {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    background: rgba(240, 130, 0, 0.06);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--orange);
+    position: relative;
+  }
+  .timer-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 5px;
+  }
+  .timer-value {
+    font-family: var(--display);
+    font-size: 28px;
+    color: var(--orange);
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+
+  /* SIDEBAR FOOTER */
+  .sidebar-foot {
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  .live-indicator {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--orange);
+    flex-shrink: 0;
+    padding-bottom: 6px;
+  }
+  .test-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--line-hot);
+    color: var(--white);
+    font-family: var(--display);
+    font-size: 28px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0 0 6px;
+    outline: none;
+    flex: 1;
+    margin-right: 20px;
+    transition: border-color 0.2s;
+    min-width: 0;
+  }
+  .test-name-input::placeholder { color: var(--faint); }
+  .test-name-input:focus { border-bottom-color: var(--orange); }
+  .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--orange);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(240, 130, 0, 0.7); }
+    50% { box-shadow: 0 0 0 6px rgba(240, 130, 0, 0); }
+  }
+  .reset-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--line-hot);
+    color: var(--dim);
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .reset-btn:hover {
+    border-color: var(--orange);
+    color: var(--orange);
+    background: rgba(240, 130, 0, 0.05);
+  }
+
+  /* ============ MAIN ============ */
+  .main {
+    padding: 28px 32px 22px;
+    display: grid;
+    grid-template-rows: auto auto auto 1fr;
+    gap: 14px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* MAIN HEADER */
+  .main-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .page-title {
+    font-family: var(--display);
+    font-size: 42px;
+    line-height: 0.9;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+  .page-title .accent { color: var(--orange); }
+  .user-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 12px;
+    background: var(--char);
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--dim);
+  }
+  .user-dot {
+    width: 6px; height: 6px;
+    background: var(--orange);
+    border-radius: 50%;
+  }
+
+  /* PREP — COMPACT INLINE STRIP */
+  .prep-strip {
+    display: grid;
+    grid-template-columns: auto repeat(4, 1fr);
+    gap: 8px;
+    align-items: stretch;
+    min-height: 0;
+  }
+  .prep-label {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 8px 12px 8px 0;
+    border-right: 1px solid var(--line);
+  }
+  .prep-label .tag {
+    font-family: var(--mono);
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 3px;
+  }
+  .prep-label .name {
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--white);
+    white-space: nowrap;
+  }
+  .prep-item {
+    background: transparent;
+    border: 1px solid var(--line);
+    padding: 14px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 10px;
+    position: relative;
+    min-height: 0;
+  }
+  .prep-item:hover {
+    border-color: var(--line-hot);
+    background: var(--char);
+  }
+  .prep-item.done {
+    background: rgba(240, 130, 0, 0.08);
+    border-color: var(--orange);
+  }
+  .prep-check {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--line-hot);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .prep-item:hover .prep-check { border-color: var(--orange); }
+  .prep-item.done .prep-check { background: var(--orange); border-color: var(--orange); }
+  .prep-check svg {
+    width: 9px; height: 9px;
+    opacity: 0; transform: scale(0.5);
+    transition: all 0.2s;
+  }
+  .prep-item.done .prep-check svg { opacity: 1; transform: scale(1); }
+  .prep-text {
+    font-family: var(--body);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--white);
+    line-height: 1.25;
+  }
+  .prep-item.done .prep-text { color: var(--dim); }
+
+  /* SITE CONNECTION INPUTS */
+  .site-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px; min-height: 0;
+  }
+  .site-input-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: var(--char);
+    border: 1px solid var(--line);
+  }
+  .site-input-label {
+    font-family: var(--mono);
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--orange);
+    width: 76px; flex-shrink: 0;
+  }
+  .site-ip {
+    background: transparent; border: none;
+    border-bottom: 1px solid var(--line-hot);
+    color: var(--white); font-family: var(--mono); font-size: 11px;
+    padding: 2px 4px; outline: none; flex: 1; min-width: 0;
+    transition: border-color 0.2s;
+  }
+  .site-port {
+    background: transparent; border: none;
+    border-bottom: 1px solid var(--line-hot);
+    color: var(--white); font-family: var(--mono); font-size: 11px;
+    padding: 2px 4px; outline: none; width: 64px; flex-shrink: 0;
+    transition: border-color 0.2s;
+  }
+  .site-ip:focus, .site-port:focus { border-bottom-color: var(--orange); }
+  .site-ip::placeholder, .site-port::placeholder { color: var(--faint); }
+  .site-input-sep {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--faint); flex-shrink: 0;
+  }
+
+  /* EXECUTION GRID */
+  .exec-section {
+    display: flex; flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .exec-head {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 10px;
+  }
+  .exec-tag {
+    font-family: var(--mono);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--black);
+    background: var(--orange);
+    padding: 4px 10px;
+  }
+  .exec-title {
+    font-family: var(--display);
+    font-size: 22px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--white);
+  }
+  .exec-line {
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--line), transparent);
+  }
+  .exec-count {
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 600;
+    color: var(--faint);
+    letter-spacing: 0.1em;
+  }
+  .exec-count strong { color: var(--orange); font-weight: 700; }
+
+  .exec-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .task {
+    background: var(--char);
+    border: 1px solid var(--line);
+    padding: 14px 14px 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex; flex-direction: row; align-items: flex-start; gap: 10px;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .task-body {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    height: 100%;
+  }
+  .task::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; width: 0; height: 2px;
+    background: var(--orange);
+    transition: width 0.3s ease;
+  }
+  .task:hover {
+    background: var(--char-2);
+    border-color: var(--line-hot);
+    transform: translateY(-1px);
+  }
+  .task:hover::before { width: 100%; }
+  .task.done {
+    background: linear-gradient(135deg, rgba(240, 130, 0, 0.14), rgba(240, 130, 0, 0.04));
+    border-color: var(--orange);
+  }
+  .task.done::before { width: 100%; }
+
+  .task-num {
+    font-family: var(--display);
+    font-size: 68px;
+    line-height: 0.85;
+    color: var(--faint);
+    transition: color 0.25s;
+    letter-spacing: -0.03em;
+    flex-shrink: 0;
+  }
+  .task.done .task-num { color: var(--orange); }
+
+  .task-where {
+    font-family: var(--mono);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 6px;
+  }
+  .task-action {
+    font-family: var(--body);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--white);
+    margin-bottom: 6px;
+  }
+  .task.done .task-action { color: var(--dim); }
+  .task-wait {
+    font-family: var(--body);
+    font-size: 13px;
+    color: var(--faint);
+    line-height: 1.35;
+    font-style: italic;
+  }
+
+  .checkbox {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--line-hot);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+    background: var(--black-soft);
+  }
+  .task:hover .checkbox { border-color: var(--orange); }
+  .task.done .checkbox { background: var(--orange); border-color: var(--orange); }
+  .checkbox svg {
+    width: 11px; height: 11px;
+    opacity: 0; transform: scale(0.5);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .task.done .checkbox svg { opacity: 1; transform: scale(1); }
+
+  .task-meta {
+    margin-top: auto;
+    padding-top: 6px;
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: 0.05em;
+    color: var(--faint);
+    text-align: right;
+  }
+  .task-meta .who { color: var(--orange); font-weight: 700; }
+
+  /* WARNING */
+  .warning-strip {
+    padding: 8px 14px;
+    background: rgba(240, 130, 0, 0.08);
+    border-left: 3px solid var(--orange);
+    display: flex; align-items: center; gap: 12px;
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .warning-strip strong {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--orange);
+    font-weight: 700;
+  }
+
+  /* HEIGHT-BASED SCALING — never scroll, always shrink */
+  @media (max-height: 850px) {
+    .page-title { font-size: 36px; }
+    .task-num { font-size: 74px; }
+    .clock-time { font-size: 20px; }
+    .brand-name { font-size: 44px; }
+    .sidebar { padding: 22px 24px 18px; }
+    .main { padding: 22px 28px 18px; gap: 12px; }
+  }
+  @media (max-height: 750px) {
+    .page-title { font-size: 30px; }
+    .task-num { font-size: 60px; }
+    .clock-time { font-size: 18px; }
+    .brand-name { font-size: 38px; }
+    .ring-svg { width: 54px; height: 54px; }
+    .ring-num { font-size: 26px; }
+    .clock-block { padding: 12px 14px; }
+    .progress-block { padding: 12px 0 14px; margin-bottom: 14px; }
+    .main-head { padding-bottom: 10px; }
+    .main { gap: 10px; }
+  }
+  @media (max-height: 650px) {
+    .task-num { font-size: 48px; }
+    .page-title { font-size: 26px; }
+  }
+
+  /* WIDTH-BASED SCALING */
+  @media (max-width: 1400px) {
+    .task { padding: 12px; }
+    .task-num { font-size: 70px; }
+  }
+  @media (max-width: 1200px) {
+    .layout { grid-template-columns: 280px 1fr; }
+    .task-num { font-size: 56px; }
+    .task-action { font-size: 12px; }
+    .task-where { font-size: 8.5px; }
+    .task-wait { font-size: 10px; }
+    .main { padding: 22px 22px 18px; }
+  }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 250px 1fr; }
+    .task-num { font-size: 44px; }
+    .exec-grid { gap: 5px; }
+    .task { padding: 10px; }
+    .prep-strip { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .prep-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ================ SIDEBAR ================ -->
+  <aside class="sidebar">
+
+    <div class="brand">
+      <div class="brand-name">HYSTERESIS</div>
+      <div class="brand-sub">Hybrid Test Execution Sequence</div>
+    </div>
+
+    <!-- Clock -->
+    <div class="clock-block">
+      <div class="clock-row uk">
+        <div>
+          <div class="clock-city">BRISTOL · <span class="ctag">UK</span></div>
+          <div class="clock-date" id="dateUK">—</div>
+        </div>
+        <div>
+          <div class="clock-time" id="timeUK">—</div>
+          <div class="clock-tz" id="tzUK">—</div>
+        </div>
+      </div>
+      <div class="clock-row">
+        <div>
+          <div class="clock-city">GRONINGEN · <span class="ctag">NL</span></div>
+          <div class="clock-date" id="dateNL">—</div>
+        </div>
+        <div>
+          <div class="clock-time" id="timeNL">—</div>
+          <div class="clock-tz" id="tzNL">—</div>
+        </div>
+      </div>
+      <div class="clock-row gr">
+        <div>
+          <div class="clock-city">PATRAS · <span class="ctag">GR</span></div>
+          <div class="clock-date" id="dateGR">—</div>
+        </div>
+        <div>
+          <div class="clock-time" id="timeGR">—</div>
+          <div class="clock-tz" id="tzGR">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Ring -->
+    <div class="progress-block">
+      <svg class="ring-svg" viewBox="0 0 64 64">
+        <circle class="ring-bg" cx="32" cy="32" r="28"/>
+        <circle class="ring-fg" id="ringFg" cx="32" cy="32" r="28"/>
+      </svg>
+      <div class="ring-info">
+        <div class="ring-num"><span id="doneCount">0</span><span class="tot" id="totalCount">/13</span></div>
+        <div class="ring-label">Progress</div>
+      </div>
+    </div>
+
+    <!-- Phase breakdown -->
+    <div class="phase-rows">
+      <div class="phase-row">
+        <span class="phase-label"><span class="phase-dot solid"></span>Preparation</span>
+        <span class="phase-count"><strong id="prepCount">0</strong>/4</span>
+      </div>
+      <div class="phase-row">
+        <span class="phase-label"><span class="phase-dot solid"></span>Test Execution</span>
+        <span class="phase-count"><strong id="execCount">0</strong>/9</span>
+      </div>
+    </div>
+
+    <!-- Sidebar foot -->
+    <div class="sidebar-foot">
+      <div class="test-timer" id="testTimer" style="display:none">
+        <div class="timer-label">Test Started</div>
+        <div class="timer-value" id="timerValue">00:00:00</div>
+      </div>
+      <button class="reset-btn" id="resetBtn">↺ Reset</button>
+    </div>
+
+  </aside>
+
+  <!-- ================ MAIN ================ -->
+  <main class="main">
+
+    <!-- Header -->
+    <div class="main-head">
+      <input class="test-name-input" id="testNameInput" type="text" placeholder="Test Name…" autocomplete="off" spellcheck="false">
+      <span class="live-indicator"><span class="pulse"></span>Live</span>
+    </div>
+
+    <!-- Prep strip (compact) -->
+    <div class="prep-strip" id="prepStrip">
+      <div class="prep-label">
+        <div class="name">Preparation</div>
+      </div>
+      <!-- prep items injected here -->
+    </div>
+
+    <!-- Site connection info -->
+    <div class="site-inputs">
+      <div class="site-input-row">
+        <span class="site-input-label" style="color:var(--uk)">Bristol</span>
+        <input class="site-ip" id="bristolIp" type="text" placeholder="IP Address" autocomplete="off">
+        <span class="site-input-sep">:</span>
+        <input class="site-port" id="bristolPort" type="text" placeholder="Port" autocomplete="off">
+      </div>
+      <div class="site-input-row">
+        <span class="site-input-label" style="color:var(--gr)">Patras</span>
+        <input class="site-ip" id="patrasIp" type="text" placeholder="IP Address" autocomplete="off">
+        <span class="site-input-sep">:</span>
+        <input class="site-port" id="patrasPort" type="text" placeholder="Port" autocomplete="off">
+      </div>
+      <div class="site-input-row">
+        <span class="site-input-label">Model</span>
+        <input class="site-ip" id="modelIp" type="text" placeholder="IP Address" autocomplete="off">
+        <span class="site-input-sep">:</span>
+        <input class="site-port" id="modelPort" type="text" placeholder="Port" autocomplete="off">
+      </div>
+      <div class="site-input-row">
+        <span class="site-input-label" style="color:var(--orange)">Interface (VM)</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--white);letter-spacing:0.05em;">10.136.11.4</span>
+      </div>
+    </div>
+
+    <!-- Execution -->
+    <section class="exec-section">
+      <div class="exec-head">
+        <h2 class="exec-title">Execution Sequence</h2>
+        <span class="exec-line"></span>
+        <span class="exec-count"><strong id="execCountInline">0</strong> / 9</span>
+      </div>
+      <ul class="exec-grid" id="execList"></ul>
+    </section>
+
+
+  </main>
+
+</div>
+
+<script>
+  const PREP_STEPS = [
+    { id: 'p1', text: 'VPN Connection' },
+    { id: 'p2', text: 'Received IP and Port Numbers' },
+    { id: 'p3', text: 'Input files modified' },
+    { id: 'p4', text: 'Pinging Algorithm' }
+  ];
+
+  const EXEC_STEPS = [
+    { id: 'e1', where: 'Bristol GUI', action: 'Start Server', wait: '' },
+    { id: 'e2', where: 'Patras GUI', action: 'Start Server', wait: '' },
+    { id: 'e3', where: 'Interface GUI', action: 'Connect → Bristol', wait: '' },
+    { id: 'e4', where: 'Interface GUI', action: 'Connect → Patras', wait: '' },
+    { id: 'e5', where: 'Interface GUI', action: 'Connect → Model', wait: '' },
+    { id: 'e6', where: 'OpenSees', action: 'Execute Model', wait: '' },
+    { id: 'e7', where: 'Bristol GUI', action: 'Run', wait: '' },
+    { id: 'e8', where: 'Patras GUI', action: 'Run', wait: '' },
+    { id: 'e9', where: 'Interface GUI', action: 'Run → Go', wait: '' }
+  ];
+
+  const STORAGE_KEY = 'hysteresis_state_v3';
+  const USER_KEY = 'hysteresis_user_v3';
+  const TIMER_KEY = 'hysteresis_timer_v1';
+  const RING_CIRCUM = 175.9;
+  let timerInterval = null;
+  const TOTAL = PREP_STEPS.length + EXEC_STEPS.length;
+
+  function getUserLabel() {
+    let label = localStorage.getItem(USER_KEY);
+    if (!label) {
+      const adj = ['Echo', 'Vector', 'Delta', 'Helix', 'Apex', 'Nova', 'Flux', 'Zenith'];
+      const num = Math.floor(Math.random() * 90) + 10;
+      label = 'OP-' + adj[Math.floor(Math.random() * adj.length)] + '-' + num;
+      localStorage.setItem(USER_KEY, label);
+    }
+    return label;
+  }
+  const currentUser = getUserLabel();
+  document.getElementById('totalCount').textContent = '/' + TOTAL;
+
+  let state = {};
+  function loadState() {
+    try { const s = localStorage.getItem(STORAGE_KEY); if (s) state = JSON.parse(s); }
+    catch (e) { state = {}; }
+  }
+  function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+  function buildPrepItem(step) {
+    const st = state[step.id] || { done: false };
+    const div = document.createElement('div');
+    div.className = 'prep-item' + (st.done ? ' done' : '');
+    div.innerHTML =
+      '<div class="prep-check"><svg viewBox="0 0 9 9" fill="none"><path d="M1.5 4.5L4 7L7.5 2.5" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+      '<div class="prep-text">' + step.text + '</div>';
+    div.addEventListener('click', () => toggleStep(step.id));
+    return div;
+  }
+
+  function buildExecCard(step, displayNum) {
+    const st = state[step.id] || { done: false };
+    const li = document.createElement('li');
+    li.className = 'task' + (st.done ? ' done' : '');
+    let metaHtml = '<div class="task-meta"></div>';
+    if (st.done && st.at) {
+      const time = new Date(st.at).toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', timeZone: 'Europe/Amsterdam'});
+      metaHtml = '<div class="task-meta">✓ ' + time + ' CET</div>';
+    }
+    const waitHtml = step.wait ? '<div class="task-wait">' + step.wait + '</div>' : '';
+    li.innerHTML =
+      '<div class="checkbox"><svg viewBox="0 0 11 11" fill="none"><path d="M2 5.5L4.5 8L9 3" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+      '<div class="task-num">' + displayNum + '</div>' +
+      '<div class="task-body">' +
+        '<div class="task-where">' + step.where + '</div>' +
+        '<div class="task-action">' + step.action + '</div>' +
+        waitHtml +
+        metaHtml +
+      '</div>';
+    li.addEventListener('click', () => toggleStep(step.id));
+    return li;
+  }
+
+  function render() {
+    const prepStrip = document.getElementById('prepStrip');
+    const execList = document.getElementById('execList');
+
+    // Clear prep strip but keep label
+    prepStrip.querySelectorAll('.prep-item').forEach(el => el.remove());
+    execList.innerHTML = '';
+
+    let prepDone = 0, execDone = 0;
+
+    PREP_STEPS.forEach(step => {
+      prepStrip.appendChild(buildPrepItem(step));
+      if (state[step.id] && state[step.id].done) prepDone++;
+    });
+
+    EXEC_STEPS.forEach((step, i) => {
+      const num = String(i + 1);
+      execList.appendChild(buildExecCard(step, num));
+      if (state[step.id] && state[step.id].done) execDone++;
+    });
+
+    document.getElementById('prepCount').textContent = prepDone;
+    document.getElementById('execCount').textContent = execDone;
+    document.getElementById('execCountInline').textContent = execDone;
+
+    const total = prepDone + execDone;
+    document.getElementById('doneCount').textContent = total;
+    const offset = RING_CIRCUM - (total / TOTAL) * RING_CIRCUM;
+    document.getElementById('ringFg').style.strokeDashoffset = offset;
+    checkTimer();
+  }
+
+  function updateTimer() {
+    const start = parseInt(localStorage.getItem(TIMER_KEY));
+    if (!start) return;
+    const elapsed = Math.floor((Date.now() - start) / 1000);
+    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const s = String(elapsed % 60).padStart(2, '0');
+    document.getElementById('timerValue').textContent = h + ':' + m + ':' + s;
+  }
+
+  function checkTimer() {
+    const execDone = EXEC_STEPS.filter(s => state[s.id] && state[s.id].done).length;
+    const timerEl = document.getElementById('testTimer');
+    if (execDone === EXEC_STEPS.length) {
+      if (!localStorage.getItem(TIMER_KEY)) localStorage.setItem(TIMER_KEY, String(Date.now()));
+      timerEl.style.display = 'block';
+      updateTimer();
+      if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
+    } else {
+      timerEl.style.display = 'none';
+      clearInterval(timerInterval);
+      timerInterval = null;
+      localStorage.removeItem(TIMER_KEY);
+    }
+  }
+
+  function toggleStep(id) {
+    const execIdx = EXEC_STEPS.findIndex(s => s.id === id);
+    const cur = state[id] || { done: false };
+    if (execIdx !== -1) {
+      const allPrepDone = PREP_STEPS.every(s => state[s.id] && state[s.id].done);
+      if (!allPrepDone) return;
+      if (cur.done) {
+        // Can only uncheck the last completed exec step
+        const lastDone = EXEC_STEPS.reduce((last, s, i) => (state[s.id] && state[s.id].done ? i : last), -1);
+        if (execIdx !== lastDone) return;
+      } else {
+        // Can only check if the previous exec step is already done
+        if (execIdx > 0 && !(state[EXEC_STEPS[execIdx - 1].id] && state[EXEC_STEPS[execIdx - 1].id].done)) return;
+      }
+    }
+    if (cur.done) state[id] = { done: false };
+    else state[id] = { done: true, by: currentUser, at: Date.now() };
+    render(); saveState();
+  }
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (confirm('Reset execution sequence?')) {
+      EXEC_STEPS.forEach(s => delete state[s.id]);
+      localStorage.removeItem(TIMER_KEY);
+      clearInterval(timerInterval);
+      timerInterval = null;
+      document.getElementById('testTimer').style.display = 'none';
+      render();
+      saveState();
+    }
+  });
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) { loadState(); render(); }
+  });
+
+  // CLOCK
+  function updateClock() {
+    const now = new Date();
+    const zones = [
+      { tz: 'Europe/London',    dateId: 'dateUK', timeId: 'timeUK', tzId: 'tzUK' },
+      { tz: 'Europe/Amsterdam', dateId: 'dateNL', timeId: 'timeNL', tzId: 'tzNL' },
+      { tz: 'Europe/Athens',    dateId: 'dateGR', timeId: 'timeGR', tzId: 'tzGR' },
+    ];
+    zones.forEach(({ tz, dateId, timeId, tzId }) => {
+      const dateStr = now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: tz }).toUpperCase();
+      document.getElementById(dateId).textContent = dateStr;
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, timeZone: tz, timeZoneName: 'short'
+      }).formatToParts(now);
+      const get = t => parts.find(p => p.type === t).value;
+      document.getElementById(timeId).innerHTML = get('hour') + ':' + get('minute') + '<span class="sec">:' + get('second') + '</span>';
+      document.getElementById(tzId).textContent = get('timeZoneName');
+    });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  loadState();
+  render();
+
+  // TEST NAME persistence
+  const TEST_NAME_KEY = 'hysteresis_test_name';
+  const nameInput = document.getElementById('testNameInput');
+  nameInput.value = localStorage.getItem(TEST_NAME_KEY) || '';
+  nameInput.addEventListener('input', () => localStorage.setItem(TEST_NAME_KEY, nameInput.value));
+
+  // SITE CONNECTION persistence
+  ['bristolIp', 'bristolPort', 'patrasIp', 'patrasPort', 'modelIp', 'modelPort'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = localStorage.getItem('hys_' + id) || '';
+    el.addEventListener('input', () => localStorage.setItem('hys_' + id, el.value));
+  });
+</script>
+
+</body>
+</html>
