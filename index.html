@@ -310,6 +310,25 @@
     background: rgba(240, 130, 0, 0.05);
   }
 
+  /* LOCK BUTTON */
+  .lock-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px;
+    background: var(--char);
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--faint);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .lock-btn:hover { border-color: var(--line-hot); color: var(--dim); }
+  .lock-btn.unlocked { border-color: var(--orange); color: var(--orange); background: rgba(240,130,0,0.06); }
+  .lock-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+
   /* ============ MAIN ============ */
   .main {
     padding: 28px 32px 22px;
@@ -756,7 +775,16 @@
     <!-- Header -->
     <div class="main-head">
       <input class="test-name-input" id="testNameInput" type="text" placeholder="Test Name…" autocomplete="off" spellcheck="false">
-      <span class="live-indicator"><span class="pulse"></span>Live</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <button class="lock-btn" id="lockBtn">
+          <svg id="lockIcon" viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="6" width="10" height="7" rx="1"/>
+            <path id="lockShackle" d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/>
+          </svg>
+          <span id="lockLabel">Locked</span>
+        </button>
+        <span class="live-indicator"><span class="pulse"></span>Live</span>
+      </div>
     </div>
 
     <!-- Prep strip (compact) -->
@@ -803,7 +831,7 @@
       <ul class="exec-grid" id="execList"></ul>
     </section>
 
-
+  
   </main>
 
 </div>
@@ -861,6 +889,39 @@
   let timerStart    = null;
   const TOTAL = PREP_STEPS.length + EXEC_STEPS.length;
   document.getElementById('totalCount').textContent = '/' + TOTAL;
+
+  // ================================================================
+  //  PASSWORD — change this to whatever you want
+  // ================================================================
+  const PASSWORD = '11052026';
+  // ================================================================
+
+  let unlocked = false;
+
+  function setLockState(open) {
+    unlocked = open;
+    const btn     = document.getElementById('lockBtn');
+    const label   = document.getElementById('lockLabel');
+    const shackle = document.getElementById('lockShackle');
+    btn.classList.toggle('unlocked', open);
+    label.textContent = open ? 'Unlocked' : 'Locked';
+    shackle.setAttribute('d', open
+      ? 'M3.5 6V4a2.5 2.5 0 0 1 5 0'
+      : 'M3.5 6V4a2.5 2.5 0 0 1 5 0v2');
+  }
+
+  document.getElementById('lockBtn').addEventListener('click', () => {
+    if (unlocked) {
+      setLockState(false);
+    } else {
+      const pw = prompt('Enter password to unlock editing:');
+      if (pw === PASSWORD) {
+        setLockState(true);
+      } else if (pw !== null) {
+        alert('Incorrect password.');
+      }
+    }
+  });
 
   // steps: { p1: <timestamp>, e1: <timestamp>, ... } — key present = done
   let steps = {};
@@ -997,6 +1058,7 @@
   }
 
   function toggleStep(id) {
+    if (!unlocked) return;
     const execIdx = EXEC_STEPS.findIndex(s => s.id === id);
     const wasDone = isDone(id);
 
@@ -1022,6 +1084,7 @@
   }
 
   document.getElementById('resetBtn').addEventListener('click', () => {
+    if (!unlocked) return;
     if (confirm('Reset execution sequence?')) {
       const clears = {};
       EXEC_STEPS.forEach(s => { clears[s.id] = null; });
